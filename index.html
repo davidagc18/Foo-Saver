@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Saver - Alacena Inteligente (POO)</title>
+    <style>
+        :root {
+            --primary: #4CAF50; --secondary: #2E7D32; --bg: #f4f7f6; --text: #333;
+            --danger: #e74c3c; --warning: #f1c40f; --card-bg: #fff;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        
+        #screen-diet { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .diet-btn { margin: 10px; padding: 15px 30px; font-size: 1.2em; cursor: pointer; border: none; border-radius: 8px; background-color: var(--primary); color: white; transition: 0.3s; }
+        .diet-btn:hover { background-color: var(--secondary); }
+        
+        /* Apariencia cuando el botón está deshabilitado */
+        .diet-btn:disabled { background-color: #cccccc; color: #666666; cursor: not-allowed; }
+
+        #screen-main { display: none; padding: 20px; max-width: 1200px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .search-bar { padding: 10px; width: 300px; border-radius: 5px; border: 1px solid #ccc; }
+        
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: var(--card-bg); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 50vh; overflow-y: auto; }
+        .section-title { margin-top: 0; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        
+        .food-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .add-btn, .action-btn { background: var(--primary); color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .add-btn:hover { background: var(--secondary); }
+        .delete-btn { background: var(--danger); }
+        
+        /* Modales */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 10px; width: 350px; text-align: center; }
+        .modal-content input, .modal-content select { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
+        .btn-group { display: flex; justify-content: space-around; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <!-- PANTALLA 1: Orientación -->
+    <div id="screen-diet">
+        <h1>Bienvenido a Food Saver</h1>
+        <p>Por favor, selecciona tu orientación alimenticia:</p>
+        <div>
+            <button class="diet-btn" onclick="initApp('omnivoro')">Omnívoro</button>
+            <button class="diet-btn" onclick="initApp('vegetariano')">Vegetariano</button>
+            <button class="diet-btn" onclick="initApp('vegano')">Vegano</button>
+        </div>
+    </div>
+
+    <!-- PANTALLA 2: Interfaz Principal -->
+    <div id="screen-main">
+        <div class="header">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h2 id="user-diet-display" style="margin: 0;">Mi Alacena</h2>
+                <!-- Botón para limpiar memoria y volver al inicio -->
+                <button class="action-btn delete-btn" onclick="resetearApp()">Resetear Todo</button>
+            </div>
+            <input type="text" id="search-input" class="search-bar" placeholder="Buscar en la base de datos..." onkeyup="renderDatabase()">
+        </div>
+
+        <div class="grid-container">
+            <div class="panel">
+                <h3 class="section-title">Mi Alacena Virtual</h3>
+                <div id="pantry-list"></div>
+            </div>
+
+            <div class="panel">
+                <h3 class="section-title">Base de Datos de Alimentos</h3>
+                <div id="db-list"></div>
+            </div>
+        </div>
+
+        <!-- Botón de Siguiente Página -->
+        <div style="text-align: center; margin-top: 30px;">
+            <button id="btn-siguiente" class="diet-btn" onclick="window.location.href='siguiente.html'" disabled>Ir al Recetario (Siguiente)</button>
+        </div>
+    </div>
+
+    <!-- Modal Agregar -->
+    <div id="add-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-food-name">Agregar Alimento</h3>
+            <input type="number" id="modal-weight" placeholder="Peso en gramos (Ej: 500)">
+            <div id="modal-dynamic-input"></div>
+            <div class="btn-group">
+                <button class="action-btn" onclick="confirmAddFood()">Guardar</button>
+                <button class="action-btn delete-btn" onclick="closeModal('add-modal')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Actualizar -->
+    <div id="update-modal" class="modal">
+        <div class="modal-content">
+            <h3>Actualización Requerida</h3>
+            <p>Por favor actualiza el estado de:</p>
+            <h4 id="update-food-name"></h4>
+            <select id="update-state-select">
+                <option value="Fresco">Fresco</option>
+                <option value="Maduro">Maduro</option>
+                <option value="Pasado">Pasado</option>
+            </select>
+            <div class="btn-group">
+                <button class="action-btn" onclick="confirmUpdateState()">Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. CLASES POO (Solo las necesarias para la alacena)
+        class Alimento {
+            constructor(id, nombre, tipo, peso) {
+                this.id = id; this.nombre = nombre; this.tipo = tipo; this.peso = peso;
+            }
+        }
+
+        class AlimentoPerecedero extends Alimento {
+            constructor(id, nombre, tipo, peso, estado) {
+                super(id, nombre, tipo, peso);
+                this.estado = estado; 
+                this.ultimaActualizacion = new Date().getTime();
+            }
+            requiereActualizacion() {
+                return (new Date().getTime() - this.ultimaActualizacion) > (24 * 60 * 60 * 1000);
+            }
+            actualizarEstado(nuevoEstado) {
+                this.estado = nuevoEstado;
+                this.ultimaActualizacion = new Date().getTime();
+            }
+        }
+
+        class AlimentoNoPerecedero extends Alimento {
+            constructor(id, nombre, tipo, peso, fechaCaducidad) {
+                super(id, nombre, tipo, peso);
+                this.fechaCaducidad = fechaCaducidad;
+            }
+        }
+
+        // 2. GESTOR DE ALACENA
+        class Alacena {
+            constructor() {
+                this.inventario = [];
+                this.dietaUsuario = null;
+                this.cargarDatos(); 
+            }
+            setDieta(dieta) {
+                this.dietaUsuario = dieta;
+                this.guardarDatos();
+            }
+            agregarAlimento(nuevoAlimento) {
+                let index = this.inventario.findIndex(a => a.id === nuevoAlimento.id);
+                if (index !== -1 && this.inventario[index].constructor.name === nuevoAlimento.constructor.name) {
+                    this.inventario[index].peso += nuevoAlimento.peso;
+                } else {
+                    this.inventario.push(nuevoAlimento);
+                }
+                this.guardarDatos();
+            }
+            eliminarAlimento(index) {
+                this.inventario.splice(index, 1);
+                this.guardarDatos();
+            }
+            guardarDatos() {
+                localStorage.setItem('foodsaver_diet', this.dietaUsuario);
+                localStorage.setItem('foodsaver_pantry', JSON.stringify(this.inventario));
+            }
+            cargarDatos() {
+                this.dietaUsuario = localStorage.getItem('foodsaver_diet');
+                let dataGuardada = JSON.parse(localStorage.getItem('foodsaver_pantry')) || [];
+                this.inventario = dataGuardada.map(item => {
+                    if (item.estado) {
+                        let p = new AlimentoPerecedero(item.id, item.nombre, item.tipo, item.peso, item.estado);
+                        p.ultimaActualizacion = item.ultimaActualizacion;
+                        return p;
+                    } else {
+                        return new AlimentoNoPerecedero(item.id, item.nombre, item.tipo, item.peso, item.fechaCaducidad);
+                    }
+                });
+            }
+        }
+
+        // 3. BASE DE DATOS SIMULADA
+        const baseAlimentos = [
+            { id: 1, nombre: "Arroz", tipo: "grano" },
+            { id: 2, nombre: "Huevo", tipo: "animal" },
+            { id: 3, nombre: "Leche", tipo: "animal_derivado" },
+            { id: 4, nombre: "Carne de Res", tipo: "carne" },
+            { id: 5, nombre: "Tomate", tipo: "vegetal" },
+            { id: 6, nombre: "Manzana", tipo: "fruta" }
+        ];
+
+        // 4. CONTROLADORES DE LA INTERFAZ
+        const miAlacena = new Alacena();
+        let seleccionTemporal = null; 
+        let tempUpdateIndex = null;
+
+        window.onload = () => {
+            if (miAlacena.dietaUsuario) showMainScreen();
+        };
+
+        function initApp(dietType) {
+            miAlacena.setDieta(dietType);
+            showMainScreen();
+        }
+
+        function showMainScreen() {
+            document.getElementById('screen-diet').style.display = 'none';
+            document.getElementById('screen-main').style.display = 'block';
+            document.getElementById('user-diet-display').innerText = `Mi Alacena (${miAlacena.dietaUsuario})`;
+            
+            renderDatabase();
+            renderPantry();
+            checkDailyUpdates(); 
+        }
+
+        function renderDatabase() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const dbList = document.getElementById('db-list');
+            dbList.innerHTML = '';
+            
+            baseAlimentos.forEach(food => {
+                if (!food.nombre.toLowerCase().includes(query)) return;
+                if (miAlacena.dietaUsuario === 'vegano' && (food.tipo === 'carne' || food.tipo === 'animal' || food.tipo === 'animal_derivado')) return;
+                if (miAlacena.dietaUsuario === 'vegetariano' && food.tipo === 'carne') return;
+
+                const div = document.createElement('div');
+                div.className = 'food-item';
+                div.innerHTML = `<span>${food.nombre} <small>(${food.tipo})</small></span>
+                                 <button class="add-btn" onclick="openAddModal(${food.id})">+</button>`;
+                dbList.appendChild(div);
+            });
+        }
+
+        function renderPantry() {
+            const pantryList = document.getElementById('pantry-list');
+            pantryList.innerHTML = '';
+
+            if (miAlacena.inventario.length === 0) {
+                pantryList.innerHTML = '<p>Tu alacena está vacía.</p>';
+            }
+
+            miAlacena.inventario.forEach((item, index) => {
+                let extraInfo = (item instanceof AlimentoPerecedero) 
+                    ? `<span style="color:var(--warning)">Estado: ${item.estado}</span>` 
+                    : `<span style="color:var(--danger)">Vence: ${item.fechaCaducidad}</span>`;
+
+                const div = document.createElement('div');
+                div.className = 'food-item';
+                div.innerHTML = `<div><strong>${item.nombre}</strong> - ${item.peso}g <br><small>${extraInfo}</small></div>
+                                 <button class="action-btn delete-btn" onclick="deleteFromPantry(${index})">Eliminar</button>`;
+                pantryList.appendChild(div);
+            });
+
+            // Control de habilitación del botón Siguiente
+            const btnSiguiente = document.getElementById('btn-siguiente');
+            if (btnSiguiente) {
+                btnSiguiente.disabled = (miAlacena.inventario.length === 0);
+            }
+        }
+
+        function openAddModal(foodId) {
+            seleccionTemporal = baseAlimentos.find(f => f.id === foodId);
+            document.getElementById('modal-food-name').innerText = `Agregando: ${seleccionTemporal.nombre}`;
+            document.getElementById('modal-weight').value = '';
+            
+            const dynamicDiv = document.getElementById('modal-dynamic-input');
+            if (seleccionTemporal.tipo === 'fruta' || seleccionTemporal.tipo === 'vegetal') {
+                dynamicDiv.innerHTML = `<select id="modal-state"><option value="Fresco">Fresco</option><option value="Maduro">Maduro</option><option value="Pasado">Pasado</option></select>`;
+            } else {
+                dynamicDiv.innerHTML = `<input type="date" id="modal-date" required>`;
+            }
+            document.getElementById('add-modal').style.display = 'flex';
+        }
+
+        function confirmAddFood() {
+            const peso = parseInt(document.getElementById('modal-weight').value);
+            if (!peso || peso <= 0) return alert("Ingrese un peso válido.");
+
+            let nuevoItem;
+            if (seleccionTemporal.tipo === 'fruta' || seleccionTemporal.tipo === 'vegetal') {
+                const estado = document.getElementById('modal-state').value;
+                nuevoItem = new AlimentoPerecedero(seleccionTemporal.id, seleccionTemporal.nombre, seleccionTemporal.tipo, peso, estado);
+            } else {
+                const fecha = document.getElementById('modal-date').value;
+                if (!fecha) return alert("Seleccione fecha de vencimiento.");
+                nuevoItem = new AlimentoNoPerecedero(seleccionTemporal.id, seleccionTemporal.nombre, seleccionTemporal.tipo, peso, fecha);
+            }
+
+            miAlacena.agregarAlimento(nuevoItem);
+            closeModal('add-modal');
+            renderPantry();
+        }
+
+        function deleteFromPantry(index) {
+            miAlacena.eliminarAlimento(index);
+            renderPantry();
+        }
+
+        function checkDailyUpdates() {
+            for (let i = 0; i < miAlacena.inventario.length; i++) {
+                let item = miAlacena.inventario[i];
+                if (item instanceof AlimentoPerecedero && item.requiereActualizacion()) {
+                    tempUpdateIndex = i;
+                    document.getElementById('update-food-name').innerText = item.nombre;
+                    document.getElementById('update-modal').style.display = 'flex';
+                    break;
+                }
+            }
+        }
+
+        function confirmUpdateState() {
+            const newState = document.getElementById('update-state-select').value;
+            miAlacena.inventario[tempUpdateIndex].actualizarEstado(newState);
+            miAlacena.guardarDatos();
+            closeModal('update-modal');
+            renderPantry();
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        
+        // Función para purgar los datos y empezar de cero
+        function resetearApp() {
+            localStorage.clear();
+            location.reload();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!--
+Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+Click nbfs://nbhost/SystemFileSystem/Templates/ClientSide/html.html to edit this template
+-->
+<html>
+   <!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Food Saver - Siguiente Página</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .tarjeta { background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="tarjeta">
+        <h2>Datos Recibidos de la Alacena</h2>
+        <div id="contenedor-datos"></div>
+    </div>
+
+    <script>
+        // 1. Leer la memoria del navegador usando exactamente el mismo nombre clave ('foodsaver_pantry')
+        let datosGuardados = localStorage.getItem('foodsaver_pantry');
+
+        // 2. Convertir esos datos de texto (JSON) a un arreglo que JavaScript pueda entender
+        // Si no hay nada, creamos un arreglo vacío []
+        let inventario = datosGuardados ? JSON.parse(datosGuardados) : [];
+
+        // 3. Pintar los datos en la pantalla
+        let contenedor = document.getElementById('contenedor-datos');
+
+        if (inventario.length === 0) {
+            contenedor.innerHTML = "<p>No hay alimentos guardados. Vuelve a la página anterior para agregar algunos.</p>";
+        } else {
+            // Recorremos el inventario y mostramos lo que llegó
+            inventario.forEach(item => {
+                contenedor.innerHTML += `
+                    <div style="border-bottom: 1px solid #ccc; padding: 10px 0;">
+                        <strong>Alimento:</strong> ${item.nombre} <br>
+                        <strong>Peso:</strong> ${item.peso} gramos
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
